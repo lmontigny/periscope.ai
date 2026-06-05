@@ -15,6 +15,7 @@ from src.viz.flow import routing_sankey
 from src.viz.stats import coactivation_heatmap, expert_load_chart, load_across_layers
 from src.viz.umap_plot import routing_umap_scatter
 from src.viz.generation_plot import generation_heatmap, generation_entropy_chart
+from src.viz.routing_path import routing_path_from_analysis, routing_path_from_generation
 
 st.set_page_config(
     page_title="periscope.ai — MoE Interpretability",
@@ -139,17 +140,26 @@ with tab_routing:
         )
         st.plotly_chart(entropy_heatmap(rd, m.entropy), use_container_width=True)
 
-        st.subheader("Token routing path (Sankey)")
+        st.subheader("Token routing path")
+        st.caption(
+            "Grid view: columns = layers, rows = experts.  "
+            "Faded circles = inactive experts.  "
+            "Bold circles = selected experts (size ∝ routing weight).  "
+            "Lines trace the path across layers."
+        )
         token_idx = st.slider(
-            "Token index",
+            "Token",
             min_value=0,
             max_value=rd.seq_len - 1,
             value=0,
             format="%d",
-            help="Select which token's routing path to visualise across all MoE layers.",
+            help="Select which token's routing path to visualise.",
         )
         st.caption(f"Selected token: `{rd.tokens[token_idx]}`")
-        st.plotly_chart(routing_sankey(rd, token_idx), use_container_width=True)
+        st.plotly_chart(routing_path_from_analysis(rd, token_idx), use_container_width=True)
+
+        with st.expander("Sankey view (alternative)"):
+            st.plotly_chart(routing_sankey(rd, token_idx), use_container_width=True)
 
         st.divider()
         st.subheader("Routing signature UMAP")
@@ -298,5 +308,25 @@ with tab_gen:
         )
         st.plotly_chart(
             generation_entropy_chart(gd, show_up_to=replay_step),
+            use_container_width=True,
+        )
+
+        st.divider()
+        st.subheader("Routing path for a single token")
+        st.caption("Pick any token to see which expert it was routed to at every layer.")
+        path_token_idx = st.slider(
+            "Token",
+            min_value=0,
+            max_value=gd.total_tokens - 1,
+            value=min(gd.num_prompt_tokens, gd.total_tokens - 1),
+            format="%d",
+            key="gen_path_slider",
+        )
+        st.caption(
+            f"`{gd.all_tokens[path_token_idx]}`  "
+            f"({'prompt' if path_token_idx < gd.num_prompt_tokens else 'generated'} token)"
+        )
+        st.plotly_chart(
+            routing_path_from_generation(gd, path_token_idx),
             use_container_width=True,
         )
