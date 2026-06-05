@@ -16,6 +16,7 @@ from src.viz.stats import coactivation_heatmap, expert_load_chart, load_across_l
 from src.viz.umap_plot import routing_umap_scatter
 from src.viz.generation_plot import generation_heatmap, generation_entropy_chart
 from src.viz.routing_path import routing_path_from_analysis, routing_path_from_generation
+from src.viz.transitions import token_stability_heatmap, switch_rate_chart, transition_matrix_chart
 
 st.set_page_config(
     page_title="periscope.ai — MoE Interpretability",
@@ -230,6 +231,33 @@ with tab_stats:
             "Dark cells = frequently co-activated."
         )
         st.plotly_chart(coactivation_heatmap(m), use_container_width=True)
+
+        st.divider()
+        st.subheader("Layer transition heatmap")
+        st.caption(
+            "Does a token keep the same top expert between adjacent layers, or switch?  "
+            "Blue = same expert retained. Red = expert changed."
+        )
+        from src.analysis.transitions import compute_transitions
+        td = compute_transitions(rd)
+
+        st.plotly_chart(token_stability_heatmap(rd, td), use_container_width=True)
+
+        st.plotly_chart(switch_rate_chart(td), use_container_width=True)
+
+        st.subheader("Expert transition matrix")
+        st.caption("Which expert does each expert 'hand off' to at the next layer?  Diagonal = no change.")
+        pair_idx = st.slider(
+            "Layer boundary",
+            min_value=0,
+            max_value=len(td.layer_labels) - 1,
+            value=0,
+            format="%d",
+            key="transition_pair_slider",
+            help="Select which adjacent layer pair to inspect.",
+        )
+        st.caption(f"Showing: `{td.layer_labels[pair_idx]}`")
+        st.plotly_chart(transition_matrix_chart(td, pair_idx), use_container_width=True)
 
 # ── Tab 4: Generation ─────────────────────────────────────────────────────────
 
