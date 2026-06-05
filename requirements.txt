@@ -1,4 +1,5 @@
 torch>=2.3
+torchvision>=0.18
 torchao>=0.4
 transformers>=4.43
 accelerate>=0.30
