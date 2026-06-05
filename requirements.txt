@@ -1,11 +1,18 @@
+# Inference
 torch>=2.3
-torchvision>=0.18
-torchao>=0.4
-transformers>=4.43
+torchvision>=0.18        # required by torchao on MPS
+torchao>=0.4             # int8 quantization on Apple MPS
+transformers>=4.43       # OLMoE, PhiMoE, Mixtral support
 accelerate>=0.30
-sentencepiece>=0.1.99
+sentencepiece>=0.1.99    # tokenizer for OLMoE / Mixtral
+
+# Dashboard
 streamlit>=1.35
 plotly>=5.22
+
+# Analysis
 numpy>=1.26
+umap-learn>=0.5          # routing signature projection (pulls scikit-learn, numba)
+
+# Config
 python-dotenv>=1.0
-umap-learn>=0.5
