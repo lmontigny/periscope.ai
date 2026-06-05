@@ -8,3 +8,4 @@ streamlit>=1.35
 plotly>=5.22
 numpy>=1.26
 python-dotenv>=1.0
+umap-learn>=0.5

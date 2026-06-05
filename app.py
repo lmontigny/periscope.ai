@@ -13,6 +13,7 @@ from src.analysis.metrics import compute_metrics
 from src.viz.heatmap import expert_assignment_heatmap, entropy_heatmap
 from src.viz.flow import routing_sankey
 from src.viz.stats import coactivation_heatmap, expert_load_chart, load_across_layers
+from src.viz.umap_plot import routing_umap_scatter
 
 st.set_page_config(
     page_title="periscope.ai — MoE Interpretability",
@@ -148,6 +149,45 @@ with tab_routing:
         )
         st.caption(f"Selected token: `{rd.tokens[token_idx]}`")
         st.plotly_chart(routing_sankey(rd, token_idx), use_container_width=True)
+
+        st.divider()
+        st.subheader("Routing signature UMAP")
+        st.caption(
+            "Each token is projected to 2D based on its full routing signature "
+            "(softmax probabilities across all layers and experts). "
+            "Tokens that cluster together make similar routing decisions throughout the network. "
+            "Works best with 20+ tokens."
+        )
+
+        umap_col1, umap_col2 = st.columns([1, 3])
+        with umap_col1:
+            color_by = st.radio(
+                "Color by",
+                options=["position", "entropy", "top_expert"],
+                format_func=lambda x: {
+                    "position": "Token position",
+                    "entropy": "Routing entropy",
+                    "top_expert": "Top expert (layer)",
+                }[x],
+            )
+            umap_layer = 0
+            if color_by == "top_expert":
+                umap_layer = st.slider("Layer", 0, rd.num_layers - 1, 0)
+
+        with umap_col2:
+            if rd.seq_len < 4:
+                st.warning("Need at least 4 tokens. Use a longer input text.")
+            else:
+                with st.spinner("Computing UMAP…"):
+                    try:
+                        from src.analysis.embedding import compute_umap
+                        embedding = compute_umap(rd)
+                        st.plotly_chart(
+                            routing_umap_scatter(rd, embedding, m, color_by, umap_layer),
+                            use_container_width=True,
+                        )
+                    except Exception as e:
+                        st.error(f"UMAP failed: {e}")
 
 # ── Tab 3: Expert Stats ────────────────────────────────────────────────────────
 
