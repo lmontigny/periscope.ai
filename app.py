@@ -14,6 +14,7 @@ from src.viz.heatmap import expert_assignment_heatmap, entropy_heatmap
 from src.viz.flow import routing_sankey
 from src.viz.stats import coactivation_heatmap, expert_load_chart, load_across_layers
 from src.viz.umap_plot import routing_umap_scatter
+from src.viz.generation_plot import generation_heatmap, generation_entropy_chart
 
 st.set_page_config(
     page_title="periscope.ai — MoE Interpretability",
@@ -75,7 +76,7 @@ tokenizer = st.session_state["tokenizer"]
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
-tab_input, tab_routing, tab_stats = st.tabs(["Input", "Token Routing", "Expert Stats"])
+tab_input, tab_routing, tab_stats, tab_gen = st.tabs(["Input", "Token Routing", "Expert Stats", "Generation"])
 
 # ── Tab 1: Input ───────────────────────────────────────────────────────────────
 
@@ -219,3 +220,83 @@ with tab_stats:
             "Dark cells = frequently co-activated."
         )
         st.plotly_chart(coactivation_heatmap(m), use_container_width=True)
+
+# ── Tab 4: Generation ─────────────────────────────────────────────────────────
+
+with tab_gen:
+    st.header("Generation mode")
+    st.caption(
+        "Watch how expert routing evolves token by token as the model generates. "
+        "Blue dots = prompt tokens, red dots = generated tokens."
+    )
+
+    gen_prompt = st.text_area(
+        "Prompt",
+        value="The key difference between transformers and recurrent networks is",
+        height=80,
+    )
+
+    gcol1, gcol2 = st.columns(2)
+    with gcol1:
+        max_new = st.slider("Max new tokens", min_value=10, max_value=150, value=40, step=5)
+    with gcol2:
+        temperature = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.0, step=0.1,
+                                help="0 = greedy (deterministic).  >0 adds randomness.")
+
+    if st.button("Generate", type="primary", key="gen_btn"):
+        st.session_state.pop("gen_data", None)
+        progress_bar = st.progress(0, text="Generating…")
+
+        def _progress(step, total):
+            progress_bar.progress(
+                min(step / max(total, 1), 1.0),
+                text=f"Generating token {step}/{total}…",
+            )
+
+        try:
+            from src.analysis.generation import generate_with_routing
+            gen_data = generate_with_routing(
+                gen_prompt, model, tokenizer,
+                max_new_tokens=max_new,
+                temperature=temperature,
+                progress_fn=_progress,
+            )
+            st.session_state["gen_data"] = gen_data
+            progress_bar.empty()
+        except Exception as e:
+            progress_bar.empty()
+            st.error(f"Generation failed: {e}")
+
+    if "gen_data" in st.session_state:
+        gd = st.session_state["gen_data"]
+
+        st.subheader("Generated text")
+        prompt_part = "".join(gd.prompt_tokens)
+        gen_part = "".join(gd.generated_tokens)
+        st.markdown(f"{prompt_part}**{gen_part}**")
+
+        st.divider()
+        st.subheader("Routing replay")
+        st.caption("Drag the slider to step through the generation token by token.")
+        replay_step = st.slider(
+            "Show routing up to token",
+            min_value=1,
+            max_value=gd.total_tokens,
+            value=gd.total_tokens,
+            key="replay_slider",
+        )
+
+        st.plotly_chart(
+            generation_heatmap(gd, show_up_to=replay_step),
+            use_container_width=True,
+        )
+
+        st.subheader("Routing entropy over time")
+        st.caption(
+            "Mean routing entropy per token across all MoE layers. "
+            "Spikes = the router is uncertain which experts to use for that token."
+        )
+        st.plotly_chart(
+            generation_entropy_chart(gd, show_up_to=replay_step),
+            use_container_width=True,
+        )
