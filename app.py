@@ -30,14 +30,15 @@ with st.sidebar:
     st.subheader("Model")
 
     model_options = {
-        "OLMoE 1B/7B (default — fits 16 GB)": "allenai/OLMoE-1B-7B-0924",
-        "Mixtral 8×7B (needs ~26 GB)": "mistralai/Mixtral-8x7B-v0.1",
-        "Mixtral 8×22B (needs ~64 GB)": "mistralai/Mixtral-8x22B-v0.1",
+        "Phi-tiny-MoE 3.8B — fits 16 GB, no quant needed": "microsoft/Phi-tiny-MoE-instruct",
+        "OLMoE 1B/7B — 64 experts, needs int8 quant on 16 GB": "allenai/OLMoE-1B-7B-0924",
+        "Mixtral 8×7B — needs 36 GB+": "mistralai/Mixtral-8x7B-v0.1",
+        "Mixtral 8×22B — needs 64 GB+": "mistralai/Mixtral-8x22B-v0.1",
     }
     model_label = st.selectbox("Model", list(model_options.keys()))
     model_id = model_options[model_label]
 
-    quantize = st.toggle("Quantize (int8 on MPS, int4 on CUDA)", value=True)
+    quantize = st.toggle("Quantize (int8 on MPS, int4 on CUDA)", value=False)
 
     auto_device = detect_device()
     st.caption(f"Detected device: **{auto_device}**")
