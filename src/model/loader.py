@@ -40,15 +40,19 @@ def load_model(config: Config) -> tuple:
                 config.model_id, torch_dtype=dtype, device_map="auto"
             )
     elif device == "mps" and config.load_in_quantized:
-        # torchao int8 — load on CPU first, quantize, then move to MPS
+        # Load in float16 first (7B × 2 bytes = ~14 GB peak), then quantize
+        # to int8 (~7 GB) before moving to MPS.  low_cpu_mem_usage avoids
+        # the 2× memory spike that from_pretrained normally causes.
         model = AutoModelForCausalLM.from_pretrained(
-            config.model_id, torch_dtype=torch.float32
+            config.model_id,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
         )
         try:
             from torchao.quantization import quantize_, int8_weight_only
             quantize_(model, int8_weight_only())
         except Exception:
-            pass  # torchao unavailable — continue in float32, warn below
+            pass  # torchao unavailable — stay in float16
         model = model.to(device)
     else:
         model = AutoModelForCausalLM.from_pretrained(
