@@ -16,6 +16,8 @@ class RoutingData:
     expert_weights: np.ndarray  # [num_moe_layers, seq_len, top_k]  — softmax weights
     num_experts: int
     top_k: int
+    # next_token_topk[i] = [(token_str, prob), ...] top-5 predictions after token i
+    next_token_topk: list[list[tuple[str, float]]] = None
 
     @property
     def num_layers(self) -> int:
@@ -42,7 +44,7 @@ def extract(
 
     with torch.inference_mode():
         with routing_hooks(model) as store:
-            model(**inputs)
+            outputs = model(**inputs)
 
     if not store.logits:
         raise RuntimeError(
@@ -75,6 +77,8 @@ def extract(
         expert_ids_arr[out_idx] = top_indices
         weights_arr[out_idx] = top_weights
 
+    next_token_topk = _decode_top_predictions(outputs.logits[0], tokenizer, k=5)
+
     return RoutingData(
         tokens=tokens,
         router_logits=logits_arr,
@@ -82,12 +86,35 @@ def extract(
         expert_weights=weights_arr,
         num_experts=num_experts,
         top_k=top_k,
+        next_token_topk=next_token_topk,
     )
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x - x.max(axis=-1, keepdims=True))
     return e / e.sum(axis=-1, keepdims=True)
+
+
+def _decode_top_predictions(
+    lm_logits: torch.Tensor,          # [seq_len, vocab_size]
+    tokenizer: PreTrainedTokenizerBase,
+    k: int = 5,
+) -> list[list[tuple[str, float]]]:
+    """
+    For each token position i, return the top-k predicted next tokens
+    (what the model thinks comes after token i given the full context up to i).
+    Returns a list of length seq_len; each entry is [(token_str, prob), ...].
+    """
+    probs = torch.softmax(lm_logits.float(), dim=-1)   # [seq, vocab]
+    top_probs, top_ids = probs.topk(k, dim=-1)         # both [seq, k]
+    result = []
+    for pos in range(lm_logits.shape[0]):
+        entry = [
+            (tokenizer.decode([int(top_ids[pos, j])]), float(top_probs[pos, j]))
+            for j in range(k)
+        ]
+        result.append(entry)
+    return result
 
 
 def _infer_top_k(model: PreTrainedModel) -> int:

@@ -16,6 +16,7 @@ from src.viz.stats import coactivation_heatmap, expert_load_chart, load_across_l
 from src.viz.umap_plot import routing_umap_scatter
 from src.viz.generation_plot import generation_heatmap, generation_entropy_chart
 from src.viz.routing_path import routing_path_from_analysis, routing_path_from_generation
+from src.viz.predictions import next_token_predictions_chart
 from src.viz.transitions import token_stability_heatmap, switch_rate_chart, transition_matrix_chart
 
 st.set_page_config(
@@ -158,6 +159,12 @@ with tab_routing:
         )
         st.caption(f"Selected token: `{rd.tokens[token_idx]}`")
         st.plotly_chart(routing_path_from_analysis(rd, token_idx), use_container_width=True)
+
+        if rd.next_token_topk is not None:
+            st.plotly_chart(
+                next_token_predictions_chart(rd, token_idx),
+                use_container_width=True,
+            )
 
         with st.expander("Sankey view (alternative)"):
             st.plotly_chart(routing_sankey(rd, token_idx), use_container_width=True)
